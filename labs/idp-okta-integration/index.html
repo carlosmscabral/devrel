@@ -1,0 +1,221 @@
+
+<!doctype html>
+
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+  <meta name="theme-color" content="#4F7DC9">
+  <meta charset="UTF-8">
+  <title>Apigee IDP integration with Okta</title>
+  <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Source+Code+Pro:400|Roboto:400,300,400italic,500,700|Roboto+Mono">
+  <link rel="stylesheet" href="//fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://storage.googleapis.com/claat-public/codelab-elements.css">
+  <style>
+    .success {
+      color: #1e8e3e;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <google-codelab-analytics gaid="UA-49880327-14" ga4id=""></google-codelab-analytics>
+  <google-codelab codelab-gaid=""
+                  codelab-ga4id=""
+                  id="idp-okta-integration"
+                  title="Apigee IDP integration with Okta"
+                  environment="web"
+                  feedback-link="">
+    
+      <google-codelab-step label="Introduction" duration="0">
+        <p>Welcome to the lab on  <strong>Apigee Integration with Okta</strong>!</p>
+<p>The goal of this lab is to walk you through configuring and using the <a href="https://github.com/apigee/devrel/tree/main/references/identity-facade" target="_blank">Apigee Identity Facade</a> to integrate with <a href="https://okta.com" target="_blank">Okta</a> and authenticate users.</p>
+<p>We assume the basic knowledge of Apigee platform and you will get the most from this hackathon if you do.</p>
+<p>Ideally you will have completed the Coursera Apigee <a href="https://www.coursera.org/learn/api-design-apigee-gcp" target="_blank">Design</a>, <a href="https://www.coursera.org/learn/api-development-apigee-gcp" target="_blank">Development</a> and <a href="https://www.coursera.org/learn/api-security-apigee-gcp" target="_blank">Security</a> Courses.</p>
+<p>Alternatively, completing the Apigee <a href="https://github.com/apigee/apijam" target="_blank">API Jam</a> will cover the same topics in less depth.</p>
+<p>Lets get started!</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Flow" duration="0">
+        <ul>
+<li>Application developers use the Apigee Developer Portal to register and retrieve API keys</li>
+<li>Application developers use Okta Developer Portal to create client App</li>
+<li>Client applications accessing public API hosted on Apigee will use HTTPS, API keys, and OAuth 2.0 tokens from Okta and Apigee</li>
+<li>Apigee communicates with target applications over TLS</li>
+</ul>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Prerequisites" duration="0">
+        <ul>
+<li><a href="https://developer.okta.com/signup/" target="_blank">Sign up</a> for an Okta developer account</li>
+<li>Create an <a href="https://cloud.google.com/apigee/docs/api-platform/get-started/eval-orgs" target="_blank">Apigee Eval</a> organization</li>
+</ul>
+<h2 is-upgraded>Tools</h2>
+<p>Here are the tools needed to complete the tasks:</p>
+<ul>
+<li>Web Browser (recent version of <a href="https://www.google.com/chrome/" target="_blank">Chrome</a> or <a href="https://www.mozilla.org/en-GB/firefox/new/" target="_blank">Firefox</a>)</li>
+<li><a href="https://git-scm.com/book/en/v2/Getting-Started-Installing-Git" target="_blank">Git</a></li>
+<li><a href="https://maven.apache.org/install.html" target="_blank">Maven</a></li>
+<li>A REST Client - <a href="https://www.postman.com/" target="_blank">Postman</a> or <a href="https://curl.haxx.se/" target="_blank">Curl</a></li>
+</ul>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Okta setup" duration="0">
+        <h2 is-upgraded>Retrieve Apigee URL</h2>
+<p>The URL configured in the Apigee Environment group is needed so Okta can be configured with the correct redirection setting.</p>
+<p>Use Apigee UI</p>
+<ol type="1">
+<li>Open the <a href="https://apigee.google.com" target="_blank">Apigee Portal</a></li>
+<li>Expand Admin - Environments and click on Groups</li>
+<li>Copy the Hostname(s) <ul>
+<li>Note that eval organization have a default hostname of {publicip}.nip.io. ex: 34.149.2.239.nip.io</li>
+</ul>
+</li>
+</ol>
+<p class="image-container"><img alt="Eval Hostname" src="img/685b21dde3d68955.png"></p>
+<h2 is-upgraded>Create Okta User</h2>
+<ol type="1">
+<li>Sign into your Okta developer portal</li>
+<li>In the left hand side navigate to the directory - People</li>
+<li>Click on <strong>Add person</strong><ul>
+<li>A valid email is not needed if the Password is set by Admin</li>
+</ul>
+<img alt="Create user" src="img/df76811e03e5f62f.png"></li>
+<li>Click <strong>Save</strong></li>
+</ol>
+<h2 is-upgraded>Create Okta App</h2>
+<ol type="1">
+<li>In the left hand side navigate to Applications - Applications</li>
+<li>Click on <strong>Create App Integration</strong></li>
+<li>In the window that opens, select OIDC - OpenID Connect and Web Application and click <strong>Next</strong> to create the App<img alt="Create App" src="img/6465020e9ad40361.png"></li>
+<li>In the next screen, configure the following<ul>
+<li>App integration name: Apigee App</li>
+<li>Sign-in redirect URIs:<pre><code language="language-text" class="language-text">https://{env group hostname}/v1/oauth20/callback
+</code></pre>
+</li>
+<li>example:<pre><code language="language-text" class="language-text">https://34.149.2.239.nip.io/v1/oauth20/callback
+</code></pre>
+</li>
+<li>This url points to the idp facade that will be deployed to Apigee</li>
+<li>Controlled access: Allow everyone</li>
+</ul>
+<img alt="App Name" src="img/c4acd9884ce183fd.png"><img alt="Redirect" src="img/46fa42824353d64d.png"><img alt="Assignments" src="img/f12e7d091ad9cea.png"></li>
+<li>Click <strong>Save</strong> to be taken to the properties of the Okta app just created<img alt="App Properties" src="img/fa1bd5167b7cff1e.png"></li>
+<li>Save the client ID, client secret, and Okta domain as environment variables<pre><code language="language-bash" class="language-bash">export TEST_IDP_APIGEE_CLIENT_ID={Client ID above}]
+export TEST_IDP_APIGEE_CLIENT_SECRET={Client Secret above}
+export IPD_HOSTNAME={Okta domain above}
+</code></pre>
+</li>
+</ol>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Identity Facade Setup" duration="0">
+        <ol type="1">
+<li>In a command line, clone the <a href="https://github.com/apigee/devrel" target="_blank">devrel repo</a><pre><code language="language-bash" class="language-bash">git clone https://github.com/apigee/devrel.git
+</code></pre>
+</li>
+<li>Navigate to the identity facade directory<pre><code language="language-bash" class="language-bash">cd devrel/references/identity-facade
+</code></pre>
+</li>
+<li>Run the following commands to set the environment variables required for the setup<pre><code language="language-bash" class="language-bash">export IDP_DISCOVERY_DOCUMENT=&#34;https://$IPD_HOSTNAME/.well-known/openid-configuration&#34;
+export APIGEE_X_ORG={your org name}
+export APIGEE_X_ENV={Apigee environment name. Default is eval}
+export APIGEE_X_HOSTNAME={your Apigee hostname ex:34.149.2.239.nip.io)
+</code></pre>
+</li>
+<li>Verify the variables have been set correctly<pre><code language="language-bash" class="language-bash">echo $IDP_DISCOVERY_DOCUMENT
+echo $TEST_IDP_APIGEE_CLIENT_ID
+echo $TEST_IDP_APIGEE_CLIENT_SECRET
+echo $APIGEE_X_ORG
+echo $APIGEE_X_ENV
+echo $APIGEE_X_HOSTNAME
+</code></pre>
+</li>
+<li>Deploy the identity facade<pre><code language="language-bash" class="language-bash">./pipeline.sh --googleapi
+</code></pre>
+<ul>
+<li>The output is shown below. The values for consumerKey and consumerSecret are from the Apigee identityApp that was created as part of the Identity Facade deployment. <img alt="idp facade output" src="img/b6efcec8d2243ca7.png"></li>
+</ul>
+</li>
+<li>Copy and save the following values:<ul>
+<li>consumerKey</li>
+<li>consumerSecret</li>
+<li>authorization URL</li>
+</ul>
+</li>
+<li>Finally, generate environment variables for use later.<ul>
+<li>Base64 encoding of client id and secret for use during Basic Auth in tests</li>
+</ul>
+<pre><code language="language-bash" class="language-bash">export APIGEE_CLIENT_ID={consumerKey above}
+export APIGEE_SECRET={consumerSecret above}
+export BASE64_ENCODED=$(echo -n $APIGEE_CLIENT_ID:$APIGEE_SECRET | base64)
+</code></pre>
+</li>
+</ol>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Test Identity Facade" duration="0">
+        <p>This test will simulate a three-legged <a href="https://cloud.google.com/apigee/docs/api-platform/security/oauth/oauth-introduction" target="_blank">OAuth 2.0</a> flow / authorization grant</p>
+<ol type="1">
+<li>Open an incognito tab in a browser and visit the <strong>authorization URL</strong> captured above<ul>
+<li>This step simulates an application attempting to authenticate against the Apigee Identity Facade.</li>
+<li>You can generate the authorization url using the command below.</li>
+</ul>
+<pre><code language="language-bash" class="language-bash">export AUTH_URL=&#34;https://$APIGEE_X_HOSTNAME/v1/oauth20/authorize?client_id=$APIGEE_CLIENT_ID&amp;response_type=code&amp;scope=openid email profile&amp;state=abcd-1234&amp;redirect_uri=https://mocktarget.apigee.net/echo&#34;
+echo $AUTH_URL
+</code></pre>
+</li>
+<li>Apigee will redirect to Okta to generate an authorization code. Log in using the Okta credentials for the user created earlier.<img alt="Okta Auth" src="img/941cf3789c228a8f.png"></li>
+<li>After successful authentication, Okta redirects to the Apigee callback URL (/v1/oauth20/callback), which controls the incoming query parameters, generate an authorization code (using the same value as the one provided by Okta) and performs a redirection on the client app redirect_uri <code>https://mocktarget.apigee.net/echo</code> providing the authorization_code and initial state parameters.<ul>
+<li>In a real-world scenario, the redirection would be back to the client application and it would parse Okta&#39;s response to capture the authorization code</li>
+</ul>
+<img alt="Okta auth code" src="img/e5a0274fcadaf9cd.png"></li>
+<li>Pass the authorization code, client id, and base64 encoded string to Apigee Identity Facade to generate a Bearer token that will be used for API calls.<pre><code language="language-bash" class="language-bash">export AUTH_CODE={authorization code returned above}
+export APIGEE_RESPONSE=$(curl -s --location --request POST &#34;https://$APIGEE_X_HOSTNAME/v1/oauth20/token?client_id=$APIGEE_CLIENT_ID&#34; \
+--header &#34;Authorization: Basic $BASE64_ENCODED&#34; \
+--header &#39;Content-Type: application/x-www-form-urlencoded&#39; \
+--data-urlencode &#39;redirect_uri=https://mocktarget.apigee.net/echo&#39; \
+--data-urlencode &#39;grant_type=authorization_code&#39; \
+--data-urlencode &#34;code=$AUTH_CODE&#34;)
+echo $APIGEE_RESPONSE
+export ACCESS_TOKEN=$(echo $APIGEE_RESPONSE | jq -r .access_token)
+echo $ACCESS_TOKEN
+</code></pre>
+</li>
+<li>Apigee will respond with a Bearer token (access_token) which is saved to an environment variable</li>
+<li>Finally, call an endpoint protected by OAuth. The identity facade has /protected one configured to validate OAuth tokens.<pre><code language="language-bash" class="language-bash">curl --location --request GET &#34;https://$APIGEE_X_HOSTNAME/v1/oauth20/protected&#34; \
+--header &#34;Authorization: Bearer $ACCESS_TOKEN&#34;
+</code></pre>
+<img alt="IDP Test" src="img/7ef926106d045758.png"></li>
+</ol>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Summary" duration="0">
+        <p>Congratulations! You&#39;ve now successfully integrated your Apigee environment with a 3rd party IDP, Okta, and secured your API using OAuthV2 tokens.</p>
+
+
+      </google-codelab-step>
+    
+  </google-codelab>
+
+  <script src="https://storage.googleapis.com/claat-public/native-shim.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/custom-elements.min.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/prettify.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/codelab-elements.js"></script>
+  <script src="//support.google.com/inapp/api.js"></script>
+
+</body>
+</html>
