@@ -1,0 +1,86 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+rules:
+  # 1. Semantic Naming (Prevents "IFN - Incorrect Function Name")
+  # Forces OperationIDs to be camelCase actions, banning generic HTTP verbs or underscores.
+  agent-semantic-operation-id:
+    description: "OperationIDs must be semantic actions (e.g., 'submitOrder'), avoiding technical jargon like 'post_'."
+    message: "OperationID '{{value}}' must be camelCase and cannot start with http verbs (get/post/put/delete) or contain underscores."
+    severity: error
+    given: $.paths.*[get,post,put,delete]
+    then:
+      field: operationId
+      function: pattern
+      functionOptions:
+        match: "^[a-z][a-zA-Z0-9]*$"
+        notMatch: "^(get|post|put|delete|patch).*"
+
+  # 2. The Description Economy (Prevents "Premature Invocation")
+  # Ensures every tool has a description long enough to contain Scope, Triggers, and Constraints.
+  agent-description-richness:
+    description: "Descriptions act as System Prompts and must be detailed (> 30 chars)."
+    message: "Description is too short. It must explain Scope, Triggers, and Constraints."
+    severity: error
+    given: $.paths.*[get,post,put,delete]
+    then:
+      field: description
+      function: length
+      functionOptions:
+        min: 30
+
+  # 3. Few-Shot Prompting (Prevents "IAM - Incorrect Argument format")
+  # Mandates that all parameters have examples, which serve as training data for the agent.
+  agent-examples-mandatory:
+    description: "Agents rely on examples to determine format."
+    message: "Parameter or Property '{{property}}' is missing an 'example' or 'examples' field."
+    severity: warn
+    given: [$.components.schemas..properties.*, $.paths..parameters.*]
+    then:
+      function: xor
+      functionOptions:
+        properties: ["example", "examples", "$ref"] # $ref implies the definition handles it
+
+  # 4. Strict Mode (Prevents "IAN - Incorrect Argument Name")
+  # The most critical rule: Stops agents from hallucinating fields that don't exist.
+  agent-strict-schema:
+    description: "Schemas must forbid additional properties to prevent parameter hallucination."
+    message: "Agent-ready schemas must set 'additionalProperties: false'."
+    severity: error
+    given: $.components.schemas.*
+    then:
+      field: additionalProperties
+      function: falsy
+
+  # 5. Explicit Requirements (Prevents "Silent Failures")
+  # Ensures that if a body exists, required fields are explicitly listed.
+  agent-explicit-requirements:
+    description: "Agents cannot infer implicit requirements. 'required' arrays must be present."
+    message: "Schema object is missing the 'required' array."
+    severity: warn
+    given: $.components.schemas.*
+    then:
+      field: required
+      function: truthy
+
+  # 6. Actionable Error Messages (Enables "Reflexion")
+  # Checks that error responses (400-599) return a structured object with a 'hint' field.
+  agent-error-hints:
+    description: "Error responses must include a 'hint' field to guide agent self-correction."
+    message: "Error response schema is missing the 'hint' property."
+    severity: warn
+    given: $.paths.*.*.responses[?(@property >= 400 && @property < 600)].content.*.schema
+    then:
+      field: properties.hint
+      function: truthy

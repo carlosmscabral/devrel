@@ -1,0 +1,108 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+steps:
+  # 1. Ensure Attribute Exists
+  - id: '✨ Ensure Attribute'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+    entrypoint: 'bash'
+    args: ['ensure_attribute.sh']
+    env:
+      - '_PROJECT_ID=${_PROJECT_ID}'
+      - '_API_HUB_REGION=${_API_HUB_REGION}'
+
+  # 2. Lint with Spectral (Output to JSON, allow failure)
+  - id: '🧐 Agentic Lint'
+    name: 'stoplight/spectral:latest'
+    entrypoint: '/bin/sh'
+    args:
+      - '-c'
+      - |
+        spectral lint ${_SPEC_FILE} -r linters/agentic.yaml -f json -o spectral_output.json || echo "Spectral linting finished (exit code $?)"
+
+  # 3. Classify Spec Readiness
+  - id: '🧠 Classify Spec'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+    entrypoint: 'bash'
+    args: ['classify_spec.sh']
+
+  # 4. Register in API Hub
+  - id: '📦 Register API'
+    name: 'ghcr.io/apigee/apigeecli:latest'
+    entrypoint: 'sh'
+    args:
+      - -c
+      - |
+        echo "Preparing API Hub payloads..."
+        
+        # Create api.json
+        cat <<EOF > /tmp/api.json
+        {
+          "displayName": "${_DISPLAY_NAME}",
+          "description": "Agentic Order API for demonstration",
+          "owner": {
+            "displayName": "API Team",
+            "email": "api-team@example.com"
+          },
+          "apiStyle": {
+            "attribute": "projects/${_PROJECT_ID}/locations/${_API_HUB_REGION}/attributes/system-api-style",
+            "enumValues": {
+              "values": [{ "id": "rest", "displayName": "REST", "description": "REST", "immutable": true }]
+            }
+          }
+        }
+        EOF
+
+        # Create version.json
+        cat <<EOF > /tmp/version.json
+        {
+          "displayName": "${_VERSION}",
+          "lifecycle": {
+             "attribute": "projects/${_PROJECT_ID}/locations/${_API_HUB_REGION}/attributes/system-lifecycle",
+             "enumValues": {
+               "values": [{ "id": "concept", "displayName": "Concept", "description": "Concept" }]
+             }
+          }
+        }
+        EOF
+        
+        echo "Registering in API Hub..."
+        # Create API (ignore failure if exists)
+        apigeecli apihub apis create -i ${_API_ID} -f /tmp/api.json -r ${_API_HUB_REGION} -o ${_PROJECT_ID} --default-token || echo "API ${_API_ID} might already exist, continuing..."
+        
+        # Create Version (ignore failure if exists)
+        apigeecli apihub apis versions create --api-id ${_API_ID} -i ${_VERSION} -f /tmp/version.json -r ${_API_HUB_REGION} -o ${_PROJECT_ID} --default-token || echo "Version ${_VERSION} might already exist, continuing..."
+        
+        # Upload Spec (ignore failure if exists)
+        apigeecli apihub apis versions specs create --api-id ${_API_ID} -v ${_VERSION} -i ${_SPEC_ID} -f ${_SPEC_FILE} -d "${_SPEC_ID}" -r ${_API_HUB_REGION} -o ${_PROJECT_ID} --default-token || echo "Spec ${_SPEC_ID} might already exist, continuing..."
+
+  # 5. Assign Agentic Readiness Attribute
+  - id: '🏷️ Assign Readiness'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+    entrypoint: 'bash'
+    args: ['assign_attribute.sh']
+    env:
+      - '_PROJECT_ID=${_PROJECT_ID}'
+      - '_API_HUB_REGION=${_API_HUB_REGION}'
+      - '_API_ID=${_API_ID}'
+      - '_VERSION=${_VERSION}'
+
+
+substitutions:
+  _PROJECT_ID: "your-project-id"
+  _API_ID: "agentic-order-api"
+  _DISPLAY_NAME: "Agentic Order API"
+  _VERSION: "v1-0-0"
+  _SPEC_ID: "openapi-spec"
+  _SPEC_FILE: "agentic/openapi.yaml"
